@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google 認證與會員系統</title>
+  <style>
+    body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f7fc;
+    color: #333;
+    text-align: center;
+}
+
+h1 {
+    font-size: 2.5rem;
+    color: #444;
+    margin-top: 50px;
+}
+
+/* 按鈕樣式 */
+button {
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    background-color: #34b7f1;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+button:hover {
+    background-color: #2893d0;
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+/* 用戶資訊區域樣式 */
+#user-info {
+    display: inline-block;
+    background-color: #fff;
+    padding: 20px;
+    margin-top: 40px;
+    border-radius: 12px;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+    max-width: 400px;
+    width: 80%;
+    text-align: left;
+}
+
+#user-info h3 {
+    color: #2c3e50;
+    font-size: 1.4rem;
+    margin-bottom: 15px;
+}
+
+#user-info p {
+    font-size: 1rem;
+    color: #7f8c8d;
+    margin-bottom: 10px;
+}
+
+#user-photo {
+    border-radius: 50%;
+    width: 100px;
+    height: 100px;
+    margin-top: 10px;
+    border: 3px solid #ecf0f1;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 2rem;
+    }
+
+    button {
+        font-size: 14px;
+        padding: 10px 20px;
+    }
+
+    #user-info {
+        width: 90%;
+        padding: 15px;
+    }
+
+    #user-info h3 {
+        font-size: 1.2rem;
+    }
+
+    #user-info p {
+        font-size: 0.9rem;
+    }
+}
+  </style>
+  <script type="module">
+    // Import Firebase modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-analytics.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+    import { getDatabase, ref, set, update } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+
+    // Your Firebase configuration
+    const firebaseConfig = {
+    apiKey: "AIzaSyBD4L9AglSZECDBgboOolAOIw_31qbNv8c",
+    authDomain: "wk-57f11.firebaseapp.com",
+    databaseURL: "https://wk-57f11-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "wk-57f11",
+    storageBucket: "wk-57f11.firebasestorage.app",
+    messagingSenderId: "355172531717",
+    appId: "1:355172531717:web:260f9a31b6ec7e9d12a66c",
+    measurementId: "G-ET7WHJGS76"
+  };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const auth = getAuth(app);
+    const database = getDatabase(app);
+    const provider = new GoogleAuthProvider();
+
+    // 格式化日期為本地時間
+    function formatLocalTime(isoString) {
+      const date = new Date(isoString);
+      return date.toLocaleString(); // 使用本地日期時間格式
+    }
+
+    // Google 登入邏輯
+    async function googleSignIn(isRegister) {
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+
+        // 取得用戶資料
+        const { displayName, email, photoURL, uid } = user;
+        const currentISOTime = new Date().toISOString(); // 當前時間的 ISO 格式
+        const lastLogin = formatLocalTime(currentISOTime); // 格式化為本地時間
+
+        // Realtime Database 路徑
+        const userRef = ref(database, `users/${uid}`);
+
+
+        if (isRegister) {
+          // 註冊流程：將用戶資訊寫入 Database
+          await set(userRef, {
+            name: displayName,
+            email: email,
+            photo: photoURL,
+            lastLogin: currentISOTime,
+          });
+          alert("註冊成功！");
+        } else {
+          // 登入流程：更新最後登入時間
+          await update(userRef, {
+            lastLogin: currentISOTime,
+          });
+          alert("登入成功！");
+        }
+
+        // 在畫面上顯示用戶資訊
+        displayUserInfo({ name: displayName, email: email, photo: photoURL, lastLogin });
+      } catch (error) {
+        console.error("Google 登入錯誤", error);
+        alert("登入失敗：" + error.message);
+      }
+    }
+
+    // Google 登出邏輯
+    async function googleSignOut() {
+      try {
+        await signOut(auth);
+        alert("已成功登出！");
+        resetUI();
+      } catch (error) {
+        console.error("登出錯誤", error);
+        alert("登出失敗：" + error.message);
+      }
+    }
+
+    // 顯示用戶資訊
+    function displayUserInfo(user) {
+      const { name, email, photo, lastLogin } = user;
+
+      const userInfoDiv = document.getElementById("user-info");
+      const logoutContainer = document.getElementById("logout-container");
+
+      userInfoDiv.innerHTML = `
+        <h2>用戶資訊</h2>
+        <p><strong>姓名：</strong>${name}</p>
+        <p><strong>Email：</strong>${email}</p>
+        <p><strong>最後登入時間：</strong>${lastLogin}</p>
+        <img src="${photo}" alt="用戶頭像" />
+      `;
+
+      logoutContainer.innerHTML = `
+        <button id="logout-button">登出</button>
+      `;
+
+      // 綁定登出按鈕事件
+      document.getElementById("logout-button").addEventListener("click", googleSignOut);
+    }
+
+    // 重設 UI
+    function resetUI() {
+      const userInfoDiv = document.getElementById("user-info");
+      const logoutContainer = document.getElementById("logout-container");
+
+      userInfoDiv.innerHTML = `
+        <button onclick="googleSignIn(true)">註冊</button>
+        <button onclick="googleSignIn(false)">登入</button>
+      `;
+
+      logoutContainer.innerHTML = ""; // 清空登出按鈕
+    }
+
+    // 頁面載入時初始化 UI
+    window.onload = resetUI;
+
+    // 為按鈕綁定事件
+    window.googleSignIn = googleSignIn;
+  </script>
+</head>
+<body>
+  <h1>Google 認證與會員系統</h1>
+  <div id="user-info"></div>
+  <div id="logout-container"></div>
+  
+  
+</body>
+</html>
